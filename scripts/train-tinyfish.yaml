@@ -61,10 +61,10 @@ run: |
   DATE=${DATE:-20230303}
   USE_FLASH_ATTN=${USE_FLASH_ATTN:-0}
   if [ $USE_FLASH_ATTN -eq 1 ]; then
-    TRAIN_SCRIPT=fastchat/train/train_mem.py
+    TRAIN_SCRIPT=~/tiny-vicuna/fastchat/train/train_mem.py
     USE_FLASH_SUFFIX="-flash"
   else
-    TRAIN_SCRIPT=fastchat/train/train.py
+    TRAIN_SCRIPT=~/tiny-vicuna/fastchat/train/train.py
     USE_FLASH_SUFFIX=""
   fi
   echo "Training with seq_len=${SEQ_LEN} and gc_scale=${GC_SCALE}"
@@ -79,9 +79,6 @@ run: |
   CKPT_PATH=/artifacts/chatbot/${MODEL_SIZE}b/sharegpt-${DATE}-seq-${SEQ_LEN}${USE_FLASH_SUFFIX}
   last_ckpt=$(ls ${CKPT_PATH} | grep -E '[0-9]+' | sort -t'-' -k1,1 -k2,2n | tail -1)
   mkdir -p ~/.checkpoints/${last_ckpt}
-  gsutil -m rsync -r ${CKPT_PATH}/${last_ckpt}/ ~/.checkpoints/${last_ckpt}
-
-  bash scripts/sync_local_checkpoint.sh ${LOCAL_CKPT_PATH} ${CKPT_PATH} > sync.log 2>&1 &
   
   torchrun \
     --nnodes=$NUM_NODES \
@@ -91,7 +88,7 @@ run: |
     --node_rank=${SKYPILOT_NODE_RANK} \
     $TRAIN_SCRIPT \
     --model_name_or_path ~/hf-output/llama-${MODEL_SIZE}b \
-    --data_path /data/sharegpt/sharegpt_20230322_clean_lang_split.json \
+    --data_path ~/tiny-vicuna/playground/data/tinyfish_training_data.json \
     --bf16 True \
     --output_dir $LOCAL_CKPT_PATH \
     --num_train_epochs 3 \
@@ -114,13 +111,9 @@ run: |
     --gradient_checkpointing True \
     --lazy_preprocess True
 
-  # Sync any files not in the checkpoint-* folders
-  gsutil -m rsync -r -x 'checkpoint-*' $LOCAL_CKPT_PATH/ $CKPT_PATH/
-
-
 envs:
   MODEL_SIZE: 13
   SEQ_LEN: 2048
   GC_SCALE: 4
-  DATE: 20230322
+  DATE: 20230407
   USE_FLASH_ATTN: 1
